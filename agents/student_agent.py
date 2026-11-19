@@ -20,6 +20,7 @@ class StudentAgent(Agent):
         super().__init__()
         self.name = "StudentAgent"
         self.DEPTHLIMIT = 3
+        self.depthsReached = []
         self.WINVALUE = 1000000
         self.startTime = 0
 
@@ -118,7 +119,18 @@ class StudentAgent(Agent):
             self.checkSearch()
             bestMove = None 
             bestval = float('-inf')
-            for move in get_valid_moves(board,reserves,player):
+            moves = list(get_valid_moves(board, reserves, player))
+            
+            '''
+            Mathis: We were looking into the valid moves randomly, now the best move is tried first. 
+            This is under the assumption that the best move at depth n is one of the best move at depth
+            n+1 but this can only be better than randomly try the valid moves 
+            '''
+            if self.prevBest in moves:
+                moves.remove(self.prevBest)
+                moves.insert(0, self.prevBest)
+
+            for move in moves:
                 nboard, nreserves = copy_state(board, reserves)
                 execute_move(nboard, nreserves, player, move)
                 winner = check_winner(nboard, player)
@@ -127,7 +139,8 @@ class StudentAgent(Agent):
                 elif winner == opponent: 
                     val = -self.WINVALUE
                 else:  
-                    val =  self.minValue(nboard,float('-inf'), float('inf'), 1, nreserves, player,opponent) 
+                    # Mathis: pass bestval instead of -inf, otherwise the pruning is not being passed between root moves
+                    val =  self.minValue(nboard,bestval, float('inf'), 1, nreserves, player,opponent) 
                     if val> bestval: 
                         bestMove = move 
                         bestval = val
@@ -149,17 +162,27 @@ class StudentAgent(Agent):
         Agent.step in agents/agent.py explains each argument and the time limit.
         """
         self.startTime = time.perf_counter()
+
+        self.prevBest = None
         # ALLOW_MOVES and WIN_LENGTH (from constants) are the rule flags of this game.
         # helpers.get_valid_moves / check_winner already respect them; your own
         # move generator and evaluation function must too.
         # TODO: replace with your search. Keep (time.perf_counter() - start) < STEP_TIME_LIMIT - margin.
         bestMove = None 
+        completedDepth = 0
+
         for d in range(2,10): 
             self.DEPTHLIMIT = d
             try:
                 bestMove = self.startSearch( board, reserves, player, opponent)
+                completedDepth = d    
+                self.prevBest = bestMove
             except StopSearch: 
                 break
-  
-    
+
+        self.depthsReached.append(completedDepth)
+        avg = sum(self.depthsReached) / len(self.depthsReached)
+        print(f"[{self.name}] turn {len(self.depthsReached)}: depth {completedDepth}, "
+              f"avg {avg:.2f}, time {time.perf_counter() - self.startTime:.2f}s")
+
         return bestMove
